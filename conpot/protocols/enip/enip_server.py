@@ -25,7 +25,7 @@ import traceback
 
 from lxml import etree
 from cpppo.server import network
-from cpppo.server.enip import logix
+from cpppo.server.enip import logix, Attribute, INT, WORD, UDINT, SSTRING, USINT, UINT
 from cpppo.server.enip import parser
 from cpppo.server.enip import device
 from conpot.core.protocol_wrapper import conpot_protocol
@@ -103,6 +103,9 @@ class EnipServer(object):
         # all known tags
         self.tags = cpppo.dotdict()
         self.set_tags()
+
+        # Device Info
+        self.set_device_info()
 
         logger.debug("ENIP server serial number: " + self.config.serial_number)
         logger.debug("ENIP server product name: " + self.config.product_name)
@@ -596,6 +599,19 @@ class EnipServer(object):
             tag_entry.error = 0x00
             dict.__setitem__(self.tags, tag_name, tag_entry)
 
+    def set_device_info(self):
+        self.device_info = device.Identity()
+        self.device_info.attribute['1'] = Attribute('Vendor Number', INT, default=self.device_info.config_int('Vendor Number', self.config.vendor_id))
+        self.device_info.attribute['2'] = Attribute('Device Type', INT, default=self.device_info.config_int('Device Type', self.config.device_type))
+        self.device_info.attribute['3'] = Attribute('Product Code Number', INT, default=self.device_info.config_int('Product Code Number', self.config.product_code))
+        self.device_info.attribute['4'] = Attribute('Product Revision', INT, default=self.device_info.config_int('Product Revision', self.config.product_rev))
+        self.device_info.attribute['5'] = Attribute('Status Word', WORD, default=self.device_info.config_int('Status Word', 0x3160))
+        self.device_info.attribute['6'] = Attribute('Serial Number', UDINT, default=self.device_info.config_int('Serial Number', int(self.config.serial_number)))
+        self.device_info.attribute['7'] = Attribute('Product Name', SSTRING, default=self.device_info.config_int('Product Name', self.config.product_name))
+        self.device_info.attribute['8'] = Attribute('State', USINT, default=self.device_info.config_int('State', 0xff))
+        self.device_info.attribute['9'] = Attribute('Configuration Consistency Value', UINT, default=self.device_info.config_int('Configuration Consistency Value', 0))
+        self.device_info.attribute['10'] = Attribute('Heartbeat Interval', USINT, default=self.device_info.config_int('Heartbeat Interval', 0))
+
     def start(self, host, port):
         srv_ctl = cpppo.dotdict()
         srv_ctl.control = cpppo.apidict(timeout=self.config.timeout)
@@ -605,7 +621,7 @@ class EnipServer(object):
 
         options = cpppo.dotdict()
         options.setdefault("enip_process", logix.process)
-        kwargs = dict(options, tags=self.tags, server=srv_ctl)
+        kwargs = dict(options, tags=self.tags, server=srv_ctl, identity_class=self.device_info)
 
         tcp_mode = True if self.config.mode == "tcp" else False
         udp_mode = True if self.config.mode == "udp" else False
