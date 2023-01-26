@@ -327,7 +327,11 @@ class GuardianASTServer(object):
                     request += sock.recv(4096)
                 # if first value is not ^A then do nothing
                 # thanks John(achillean) for the help
-                if request[:1] != b"\x01":
+                if request[:1] == b"\x01":
+                    cmd = request[1:7].decode()  # strip ^A and \n out
+                elif request[:2] == b"^A":
+                    cmd = request[2:8].decode()
+                else:
                     logger.info(
                         "Non ^A command attempt %s:%d. (%s)",
                         addr[0],
@@ -352,7 +356,6 @@ class GuardianASTServer(object):
                     "I20400": I20400,
                     "I20500": I20500,
                 }
-                cmd = request[1:7].decode()  # strip ^A and \n out
                 response = None
                 if cmd in cmds:
                     logger.info(
