@@ -314,6 +314,78 @@ class S7(object):
         return ssl_index_description, ssl_resp_params, ssl_resp_head + ssl_resp_data
 
     # W#16#011C
+    def request_ssl_28_1(self, data_ssl_index):
+        # just for convenience
+        current_ssl = S7.ssl_lists["W#16#xy1C"]
+        # initiate header for mass component block
+        ssl_resp_data = pack(
+            "!HHHH",
+            28,  # 1  WORD   ( ID )
+            data_ssl_index,  # 1  WORD   ( Index )
+            34,  # 1  WORD   ( Length of payload after element count )
+            0x08,
+        )  # 1  WORD   ( 2 elements follow )
+
+        # Module
+        ssl_resp_data += pack(
+            "!H24s6s",
+            0x01,  # 1  WORD   ( Data Index )
+            str_to_bytes(
+                '####'+self.data_bus.get_value(current_ssl["W#16#0007"])
+            ),  # TODO: PADDING
+            # 'System Name             ', # 12 WORDS  ( Name of automation system, padded with (0x00) )
+            str_to_bytes(""),
+        )  # 4  WORDS  ( RESERVED )
+
+        # Basic Hardware
+        ssl_resp_data += pack(
+            "!H24s8s",
+            0x06,  # 1  WORD   ( Data Index )
+            str_to_bytes(self.data_bus.get_value(current_ssl["W#16#0007"])),
+            # 12 WORDS  ( Unique Serial Number )
+            str_to_bytes(""),
+        )  # 4  WORDS  ( RESERVED )
+
+        # Version
+        ssl_resp_data += pack(
+            "!H32s",
+            0x07,  # 1  WORD   ( Data Index )
+            #15 * b'\x00' + b'\x01\x02\x03',
+            str_to_bytes('00000000000000000') + b'\x01',
+            #str_to_bytes(''),
+        )
+
+        #
+        ssl_resp_data += pack(
+            "!H32s",
+            0x81,  # 1  WORD   ( Data Index )
+            str_to_bytes(''),
+        )
+        # 16 WORDS  ( Location String, padded with (0x00) )
+
+        # craft leading response header
+        ssl_resp_head = pack(
+            "!BBH",
+            0xFF,  # 1  BYTE   ( Data Error Code. 0xFF = OK )
+            0x09,  # 1  BYTE   ( Data Type. 0x09 = Char/String )
+            len(ssl_resp_data),
+        )  # 1  WORD   ( Length of following data )
+
+        ssl_resp_packet = ssl_resp_head + ssl_resp_data
+        ssl_resp_params = pack(
+            "!BBBBBBBB",
+            0x00,  # SSL DIAG
+            0x01,  # unknown
+            0x12,  # unknown
+            0x08,  # bytes following
+            0x12,  # unknown, maybe 0x11 + 1
+            0x84,  # function; response to 0x44
+            0x01,  # subfunction; readszl
+            0x01,
+        )  # sequence ( = sequence + 1 )
+
+        return "", ssl_resp_params, ssl_resp_packet
+
     def request_ssl_28(self, data_ssl_index):
         # just for convenience
         current_ssl = S7.ssl_lists["W#16#xy1C"]
@@ -398,7 +470,7 @@ class S7(object):
         ssl_resp_data += pack(
             "!H32s",
             0x0B,  # 1  WORD   ( Data Index )
-            str_to_bytes(self.data_bus.get_value(current_ssl["W#16#000B"])),
+            str_to_bytes(''),
         )
         # 16 WORDS  ( Location String, padded with (0x00) )
 

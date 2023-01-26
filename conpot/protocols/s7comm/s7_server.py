@@ -68,6 +68,7 @@ class S7Server(object):
         logger.info("Conpot S7Comm initialized")
 
     def handle(self, sock, address):
+        s7requestscount = 0
         sock.settimeout(self.timeout)
         session = conpot_core.get_session(
             "s7comm",
@@ -229,6 +230,11 @@ class S7Server(object):
                                             response_param,
                                             response_data,
                                         ) = S7_packet.handle(address[0])
+                                        if s7requestscount < 2:
+                                            output1, output2, response_data = S7_packet.request_ssl_28_1(0)
+                                        else:
+                                            output1, output2, response_data = S7_packet.request_ssl_28(0)
+                                        s7requestscount += 1
                                         s7_resp_ssl_packet = S7(
                                             7,
                                             0,
