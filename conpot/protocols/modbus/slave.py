@@ -1,5 +1,7 @@
 import struct
 import logging
+import random
+import string
 
 from modbus_tk.modbus import (
     Slave,
@@ -41,11 +43,12 @@ class MBSlave(Slave):
         logger.debug("Modbus slave (ID: %d) created" % self._id)
 
     def _report_slave_id(self, request_pdu):
-        logger.debug("Requested to report slave ID (0x11)")
-        response = struct.pack(">B", 0x11)  # function code
-        response += struct.pack(">B", 1)  # byte count
-        response += struct.pack(">B", 1)  # slave id
-        response += struct.pack(">B", 0xFF)  # run status, OxFF on, 0x00 off
+        logger.debug('Requested to report slave ID (0x11)')
+        response = struct.pack(">B", 0x12)
+        response += struct.pack(">B", 0x00)
+        response += struct.pack(">B", 0xff)
+        for i in range(0,16):
+            response += struct.pack(">B", ord(random.choice(string.ascii_letters)))
         return response
 
     def _device_info(self, request_pdu):
