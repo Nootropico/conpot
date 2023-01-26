@@ -25,11 +25,15 @@ from bacpypes.local.device import LocalDeviceObject
 from bacpypes.apdu import APDU
 from bacpypes.pdu import PDU
 from bacpypes.errors import DecodingError
+from bacpypes import bvll
+from bacpypes.npdu import NPDU
+from bacpypes.pdu import Address as PduAddress
 import conpot.core as conpot_core
 from conpot.protocols.bacnet.bacnet_app import BACnetApp
 from conpot.core.protocol_wrapper import conpot_protocol
 from conpot.utils.networking import get_interface_ip
 import logging
+from copy import deepcopy as _deepcopy
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +77,28 @@ class BacnetServer(object):
         # I'm not sure if gevent DatagramServer handles issues where the
         # received data is over the MTU -> fragmentation
         if data:
-            pdu = PDU()
-            pdu.pduData = bytearray(data)[6:]
+            pdu = PDU(bytearray(data), source=PduAddress(address))
+            # interpret as a BVLL PDU
+            bvlpdu = bvll.BVLPDU()
+            try:
+                bvlpdu.decode(pdu)
+            except Exception:
+                logger.error("Exception occurred decoding BVLPDU", exc_info=True)
+                raise
+            # get the class related to the function
+            rpdu = bvll.bvl_pdu_types[bvlpdu.bvlciFunction]()
+            try:
+                rpdu.decode(bvlpdu)
+            except Exception:
+                logger.error("Exception occurred decoding RPDU", exc_info=True)
+                raise
+            # add missing NPDU
+            npdu = NPDU(user_data=rpdu.pduUserData)
+            npdu.decode(rpdu)
+            # get final APDU
             apdu = APDU()
             try:
-                apdu.decode(pdu)
+                apdu.decode(_deepcopy(npdu))
             except DecodingError:
                 logger.warning("DecodingError - PDU: {}".format(pdu))
                 return
