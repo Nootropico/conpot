@@ -74,7 +74,7 @@ class BacnetServer(object):
         # received data is over the MTU -> fragmentation
         if data:
             pdu = PDU()
-            pdu.pduData = bytearray(data)
+            pdu.pduData = bytearray(data)[6:]
             apdu = APDU()
             try:
                 apdu.decode(pdu)

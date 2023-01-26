@@ -38,6 +38,7 @@ from bacpypes.apdu import (
     ReadPropertyACK,
     ConfirmedServiceChoice,
     UnconfirmedServiceChoice,
+    ComplexAckPDU
 )
 from bacpypes.pdu import PDU
 import ast
@@ -269,6 +270,47 @@ class BACnetApp(BIPSimpleApplication):
                     # self._response.errorClass
                     # self._response.errorCode
 
+    def device_info_packets(self, apdu, address):
+        self._response = ComplexAckPDU()
+        self._response.pduDestination = address
+        self._response.apduInvokeID = apdu.apduInvokeID
+        self._response.apduService = 0x0C
+        object_identifier = int(f'{8:012b}' + f'{self.deviceIdentifier:022b}', 2)
+        object_identifier_hex = object_identifier.to_bytes(4, 'big')
+        if apdu.pduData[-1] == 0x4b: # object-identifier
+            self._response.pduData = b'\x0c' + object_identifier_hex + b'\x19\x4b\x3e\xc4' + object_identifier_hex + b'\x3f'
+        elif apdu.pduData[-1] == 0x78: # vendor-identifier
+            vendor_identifier = self.localDevice.__getattr__('vendorIdentifier')
+            self._response.pduData = b'\x0c' + object_identifier_hex + b'\x19\x78\x3e\x22' + vendor_identifier.to_bytes(2, 'big') + b'\x3f'
+        elif apdu.pduData[-1] == 0x79: # vendor-name
+            vendor_name = str(self.localDevice.__getattr__('vendorName'))
+            vendor_name_len = len(vendor_name.encode()) + 1
+            self._response.pduData = b'\x0c' + object_identifier_hex + b'\x19\x79\x3e\x75' + vendor_name_len.to_bytes(1, 'big') + b'\x00' + vendor_name.encode() + b'\x3f'
+        elif apdu.pduData[-1] == 0x2c: # firmware-revision
+            firmware_revision = '571409'
+            firmware_revision_len = len(firmware_revision.encode()) + 1
+            self._response.pduData = b'\x0c' + object_identifier_hex + b'\x19\x2c\x3e\x75' + firmware_revision_len.to_bytes(1, 'big') + b'\x00' + firmware_revision.encode() + b'\x3f'
+        elif apdu.pduData[-1] == 0x0c: # application-software-revision
+            application_software = 'V1.0'
+            application_software_len = len(application_software.encode()) + 1
+            self._response.pduData = b'\x0c' + object_identifier_hex + b'\x19\x0c\x3e\x75' + application_software_len.to_bytes(1, 'big') + b'\x00' + application_software.encode() + b'\x3f'
+        elif apdu.pduData[-1] == 0x4d: # object-name
+            object_name = 'object name'
+            object_name_len = len(object_name.encode()) + 1
+            self._response.pduData = b'\x0c' + object_identifier_hex + b'\x19\x4d\x3e\x75' + object_name_len.to_bytes(1, 'big') + b'\x00' + object_name.encode() + b'\x3f'
+        elif apdu.pduData[-1] == 0x46: # model-name
+            model_name = str(self.localDevice.__getattr__('modelName'))
+            model_name_len = len(model_name.encode()) + 1
+            self._response.pduData = b'\x0c' + object_identifier_hex + b'\x19\x46\x3e\x75' + model_name_len.to_bytes(1, 'big') + b'\x00' + model_name.encode() + b'\x3f'
+        elif apdu.pduData[-1] == 0x1c: # description
+            description = 'description'
+            description_len = len(description.encode()) + 1
+            self._response.pduData = b'\x0c' + object_identifier_hex + b'\x19\x1c\x3e\x75' + description_len.to_bytes(1, 'big') + b'\x00' + description.encode() + b'\x3f'
+        elif apdu.pduData[-1] == 0x3a: # location
+            location = 'location'
+            location_len = len(location.encode()) + 1
+            self._response.pduData = b'\x0c' + object_identifier_hex + b'\x19\x3a\x3e\x75' + location_len.to_bytes(1, 'big') + b'\x00' + location.encode() + b'\x3f'
+
     def indication(self, apdu, address, device):
         """logging the received PDU type and Service request"""
         request = None
@@ -290,6 +332,7 @@ class BACnetApp(BIPSimpleApplication):
                 apdu_service.__name__,
             )
             try:
+                self.device_info_packets(apdu, address)
                 request = apdu_service()
                 request.decode(apdu)
             except (AttributeError, RuntimeError, InvalidParameterDatatype) as e:
@@ -297,23 +340,25 @@ class BACnetApp(BIPSimpleApplication):
                 return
             except bacpypes.errors.DecodingError:
                 pass
-
-            for key, value in list(ConfirmedServiceChoice.enumerations.items()):
-                if apdu_service.serviceChoice == value:
-                    try:
-                        getattr(self, key)(request, address, invoke_key, device)
-                        break
-                    except AttributeError:
-                        logger.error("Not implemented Bacnet command")
-                        self._response = None
-                        return
-            else:
-                logger.info(
-                    "Bacnet indication: Invalid confirmed service choice (%s)",
-                    apdu_service.__name__,
-                )
-                self._response = None
-                return
+            except Exception:
+                pass
+            if not self._response:
+                for key, value in list(ConfirmedServiceChoice.enumerations.items()):
+                    if apdu_service.serviceChoice == value:
+                        try:
+                            getattr(self, key)(request, address, invoke_key, device)
+                            break
+                        except AttributeError:
+                            logger.error("Not implemented Bacnet command")
+                            self._response = None
+                            return
+                else:
+                    logger.info(
+                        "Bacnet indication: Invalid confirmed service choice (%s)",
+                        apdu_service.__name__,
+                    )
+                    self._response = None
+                    return
 
         # Unconfirmed request handling
         elif apdu_type.pduType == 0x1:
@@ -395,6 +440,9 @@ class BACnetApp(BIPSimpleApplication):
         apdu = APDU()
         response_apdu.encode(apdu)
         pdu = PDU()
+        packet_len = len(response_apdu.pduData) + 9
+        bvlc_length = packet_len.to_bytes(2, 'big')
+        pdu.pduData = b'\x81\x0a' + bvlc_length + b'\x01\x00'
         apdu.encode(pdu)
         if isinstance(response_apdu, RejectPDU) or isinstance(response_apdu, ErrorPDU):
             self.datagram_server.sendto(pdu.pduData, address)
