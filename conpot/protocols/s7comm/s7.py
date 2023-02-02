@@ -329,9 +329,9 @@ class S7(object):
         # Module
         ssl_resp_data += pack(
             "!H24s6s",
-            0x01,  # 1  WORD   ( Data Index )
+            0x02,  # 1  WORD   ( Data Index )
             str_to_bytes(
-                '####'+self.data_bus.get_value(current_ssl["W#16#0007"])
+                '####'+self.data_bus.get_value(current_ssl["W#16#0002"])
             ),  # TODO: PADDING
             # 'System Name             ', # 12 WORDS  ( Name of automation system, padded with (0x00) )
             str_to_bytes(""),
@@ -340,8 +340,8 @@ class S7(object):
         # Basic Hardware
         ssl_resp_data += pack(
             "!H24s8s",
-            0x06,  # 1  WORD   ( Data Index )
-            str_to_bytes(self.data_bus.get_value(current_ssl["W#16#0007"])),
+            0x02,  # 1  WORD   ( Data Index )
+            str_to_bytes(self.data_bus.get_value(current_ssl["W#16#0002"])),
             # 12 WORDS  ( Unique Serial Number )
             str_to_bytes(""),
         )  # 4  WORDS  ( RESERVED )
@@ -349,7 +349,7 @@ class S7(object):
         # Version
         ssl_resp_data += pack(
             "!H32s",
-            0x07,  # 1  WORD   ( Data Index )
+            0xc0,  # 1  WORD   ( Data Index )
             #15 * b'\x00' + b'\x01\x02\x03',
             str_to_bytes('00000000000000000') + b'\x01',
             #str_to_bytes(''),
@@ -409,11 +409,11 @@ class S7(object):
             str_to_bytes(""),
         )  # 4  WORDS  ( RESERVED )
 
-        # craft module data 0x0002 - component name
+        # craft module data 0x0007 - module type name
         ssl_resp_data += pack(
             "!H24s8s",
-            0x02,  # 1  WORD   ( Data Index )
-            str_to_bytes(self.data_bus.get_value(current_ssl["W#16#0002"])),
+            0x07,  # 1  WORD   ( Data Index )
+            str_to_bytes(self.data_bus.get_value(current_ssl["W#16#0007"])),
             # 12 WORDS  ( Name of component, padded with (0x00) )
             str_to_bytes(""),
         )  # 4  WORDS  ( RESERVED )
