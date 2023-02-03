@@ -25,7 +25,7 @@ import traceback
 
 from lxml import etree
 from cpppo.server import network
-from cpppo.server.enip import logix, Attribute, INT, WORD, UDINT, SSTRING, USINT, UINT
+from cpppo.server.enip import logix, Attribute, INT, WORD, UDINT, SSTRING, USINT, UINT, DWORD, STRING, EPATH_padded, IFACEADDRS
 from cpppo.server.enip import parser
 from cpppo.server.enip import device
 from conpot.core.protocol_wrapper import conpot_protocol
@@ -70,6 +70,7 @@ class EnipConfig(object):
         self.mode = dom.xpath("//enip/mode/text()")[0]
         self.timeout = float(dom.xpath("//enip/timeout/text()")[0])
         self.latency = float(dom.xpath("//enip/latency/text()")[0])
+        self.ip_address = 0xC0A80325 # 192.168.3.67
 
         # parse device tags, these tags will be further processed by the ENIP server
         self.dtags = []
@@ -600,6 +601,7 @@ class EnipServer(object):
             dict.__setitem__(self.tags, tag_name, tag_entry)
 
     def set_device_info(self):
+        # Device Information -> cpppo/server/enip/logix.py, def process, def setup, if identity, cpppo/server/enip/device.py, class IDENTITY
         self.device_info = device.Identity()
         self.device_info.attribute['1'] = Attribute('Vendor Number', INT, default=self.device_info.config_int('Vendor Number', self.config.vendor_id))
         self.device_info.attribute['2'] = Attribute('Device Type', INT, default=self.device_info.config_int('Device Type', self.config.device_type))
@@ -611,6 +613,14 @@ class EnipServer(object):
         self.device_info.attribute['8'] = Attribute('State', USINT, default=self.device_info.config_int('State', 0xff))
         self.device_info.attribute['9'] = Attribute('Configuration Consistency Value', UINT, default=self.device_info.config_int('Configuration Consistency Value', 0))
         self.device_info.attribute['10'] = Attribute('Heartbeat Interval', USINT, default=self.device_info.config_int('Heartbeat Interval', 0))
+        # Interface Information -> cpppo/server/enip/logix.py, def process, def setup, if tcpip, cpppo/server/enip/device.py, class TCPIP
+        self.device_ipaddress = device.TCPIP()
+        self.device_ipaddress.attribute['1'] = Attribute('Interface Status', DWORD, default=self.device_ipaddress.config_int('Interface Status', self.device_ipaddress.STS_HW_CONFIGURED))
+        self.device_ipaddress.attribute['2'] = Attribute('Configuration Capability', DWORD, default=self.device_ipaddress.config_int('Configuration Capability', self.device_ipaddress.CAP_CONFIG_SETTABLE | self.device_ipaddress.CAP_HW_CONFIGURABLE))
+        self.device_ipaddress.attribute['3'] = Attribute('Configuration Control', DWORD, default=self.device_ipaddress.config_int('Configuration Control', self.device_ipaddress.CON_STATIC))
+        self.device_ipaddress.attribute['4'] = Attribute('Path to Physical Link ', EPATH_padded, default=[self.device_ipaddress.config_json('Path to Physical Link', '[]')])
+        self.device_ipaddress.attribute['5'] = Attribute('Interface Configuration', IFACEADDRS, default=[self.device_ipaddress.config_json('Interface Configuration', '{"ip_address": ' + str(self.config.ip_address) + ', "network_mask": 0, "gateway_address": 0, "dns_primary": 0, "dns_secondary": 0, "domain_name": ""}')])
+        self.device_ipaddress.attribute['6'] = Attribute('Host Name', STRING, default=self.device_ipaddress.config_str('Host Name', ''))
 
     def start(self, host, port):
         srv_ctl = cpppo.dotdict()
@@ -621,7 +631,7 @@ class EnipServer(object):
 
         options = cpppo.dotdict()
         options.setdefault("enip_process", logix.process)
-        kwargs = dict(options, tags=self.tags, server=srv_ctl, identity_class=self.device_info)
+        kwargs = dict(options, tags=self.tags, server=srv_ctl, identity_class=self.device_info, tcpip_class=self.device_ipaddress)
 
         tcp_mode = True if self.config.mode == "tcp" else False
         udp_mode = True if self.config.mode == "udp" else False
