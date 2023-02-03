@@ -231,9 +231,9 @@ class S7Server(object):
                                             response_data,
                                         ) = S7_packet.handle(address[0])
                                         if s7requestscount < 2:
-                                            output1, output2, response_data = S7_packet.request_ssl_28_1(0)
+                                            output1, response_param, response_data = S7_packet.request_ssl_28_1(0)
                                         else:
-                                            output1, output2, response_data = S7_packet.request_ssl_28(0)
+                                            output1, response_param, response_data = S7_packet.request_ssl_28(0)
                                         s7requestscount += 1
                                         s7_resp_ssl_packet = S7(
                                             7,
