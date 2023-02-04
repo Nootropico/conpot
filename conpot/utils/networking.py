@@ -33,7 +33,7 @@ def chr_py3(x):
 
 # convert a string to an ascii byte string
 def str_to_bytes(x):
-    return x if isinstance(x, bytes) else str(x).encode("ascii")
+    return x if isinstance(x, bytes) else str(x).encode("utf-8")
 
 
 # https://www.bountysource.com/issues/4335201-ssl-broken-for-python-2-7-9
